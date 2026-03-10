@@ -8,16 +8,17 @@ on:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install requests openai
+      - run: pip install requests
       - run: python generate.py
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      - run: |
+      - name: Commit and Push
+        run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add index.html
