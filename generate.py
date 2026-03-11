@@ -1,35 +1,85 @@
 #!/usr/bin/env python3
-import os, requests
+# -*- coding: utf-8 -*-
+import os
+import sys
+import requests
 from datetime import datetime
 
-TAVILY_KEY = os.environ.get("TAVILY_API_KEY", "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")
-MINIMAX_KEY = os.environ.get("MINIMAX_API_KEY", "sk-api-B4li9vGe0fH2_8fpTu1VmZ1I6-cmSnmkLFmWJ9GCKZCJ1l-jzpqwcE8CPJnSMBq8xv8nop-T9zrcK7vSkZRcil05c9TcADK07n94zG3v7Gk5fp3R2bW_DWo")
-MINIMAX_GROUP = os.environ.get("MINIMAX_GROUP_ID", "2030928714635682370")
+TAVILY_KEY = "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"
+MINIMAX_KEY = "sk-api-B4li9vGe0fH2_8fpTu1VmZ1I6-cmSnmkLFmWJ9GCKZCJ1l-jzpqwcE8CPJnSMBq8xv8nop-T9zrcK7vSkZRcil05c9TcADK07n94zG3v7Gk5fp3R2bW_DWo"
+MINIMAX_GROUP = "2030928714635682370"
 
-def log(m): print(f"[{datetime.now().strftime('%H:%M:%S')}] {m}")
+def log(msg):
+    print("[%s] %s" % (datetime.now().strftime("%H:%M:%S"), msg))
 
-def search(q):
-    log(f"搜索: {q}")
+def search(query):
+    log("Searching: " + query)
     try:
-        r = requests.post("https://api.tavily.com/search", json={"api_key": TAVILY_KEY, "query": q, "max_results": 5}, timeout=30)
-        items = [(i.get("title",""), i.get("url","")) for i in r.json().get("results",[])]
-        log(f"  找到 {len(items)} 条")
+        url = "https://api.tavily.com/search"
+        data = {"api_key": TAVILY_KEY, "query": query, "max_results": 5}
+        r = requests.post(url, json=data, timeout=30)
+        results = r.json().get("results", [])
+        items = [(i.get("title", ""), i.get("url", "")) for i in results[:5]]
+        log("Found: " + str(len(items)))
         return items
-    except Exception as e: log(f"  错误: {e}"); return []
+    except Exception as e:
+        log("Error: " + str(e))
+        return []
 
-def fmt(items):
-    if not items: return '<div style="padding:10px;color:#888">暂无</div>'
-    html = ''
-    for t, u in items:
-        if t and u: html += f'<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05)"><div>{t}</div><a href="{u}" target="_blank" style="color:#f093fb;font-size:0.85rem;margin-top:5px">🔗 原文</a></div>'
+def format_items(items):
+    if not items:
+        return '<div style="padding:10px;color:#888">No data</div>'
+    html = ""
+    for title, url in items:
+        if title and url:
+            html += '<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05)">'
+            html += '<div>' + title + '</div>'
+            html += '<a href="' + url + '" target="_blank" style="color:#f093fb;font-size:0.85rem;margin-top:5px">Original</a>'
+            html += '</div>'
     return html
 
-def html(date, d):
-    return f'''<!DOCTYPE html><html><head><meta charset="UTF-8"><title>日报-{date}</title><style>body{{font-family:sans-serif;background:linear-gradient(#1a1a2e,#16213e);color:#fff;padding:40px}}h1{{background:-webkit-linear-gradient(#f093fb,#f5576c)}}section{{background:rgba(255,255,255,0.05);padding:25px;margin:20px 0;border-radius:16px}}h2{{color:#f093fb}}</style></head><body><h1>📰 {date}</h1><section><h2>🔧 OpenClaw</h2>{d.get('o','')}</section><section><h2>⚡ 电力</h2>{d.get('p','')}</section><section><h2>📊 售电</h2>{d.get('e','')}</section><section><h2>💹 财经</h2>{d.get('f','')}</section><section><h2>📢 综合</h2>{d.get('n','')}</section></body></html>'''
+def generate_html(date, news):
+    html = '''<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Daily Report - ''' + date + '''</title>
+<style>
+body{font-family:sans-serif;background:linear-gradient(#1a1a2e,#16213e);color:#fff;padding:40px}
+h1{background:-webkit-linear-gradient(#f093fb,#f5576c)}
+section{background:rgba(255,255,255,0.05);padding:25px;margin:20px 0;border-radius:16px}
+h2{color:#f093fb}
+</style>
+</head>
+<body>
+<h1>Daily Report ''' + date + '''</h1>
+<section><h2>OpenClaw</h2>''' + news.get('o','') + '''</section>
+<section><h2>Power</h2>''' + news.get('p','') + '''</section>
+<section><h2>Electricity</h2>''' + news.get('e','') + '''</section>
+<section><h2>Finance</h2>''' + news.get('f','') + '''</section>
+<section><h2>News</h2>''' + news.get('n','') + '''</section>
+</body>
+</html>'''
+    return html
 
-log("开始...")
-d = datetime.now().strftime("%Y年%m月%d日")
-q = {"o":"OpenClaw AI","p":"中国电力 青海竞价","e":"青海售电","f":"财经","n":"综合"}
-c = {k:fmt(search(v)) for k,v in q.items()}
-with open("index.html","w",encoding="utf-8") as f: f.write(html(d,c))
-log("完成!")
+log("Starting...")
+date = datetime.now().strftime("%Y-%m-%d")
+
+queries = {
+    "o": "OpenClaw AI news",
+    "p": "China power market Qinghai",
+    "e": "Qinghai electricity company",
+    "f": "Finance news China",
+    "n": "China news"
+}
+
+news = {}
+for key, query in queries.items():
+    news[key] = format_items(search(query))
+
+html_content = generate_html(date, news)
+
+with open("index.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+log("Done!")
